@@ -1,0 +1,19 @@
+{
+  "description": "Opt-in, real Agents JS smoke evaluation. This is configuration only and performs no API calls by itself.",
+  "environment": "live",
+  "strategies": ["direct", "programmatic"],
+  "scenarios": ["single-lookup", "independent-calls", "dependent-calls"],
+  "catalogSize": 5,
+  "trials": 1,
+  "model": "gpt-6.2-astra",
+  "pricing": {
+    "source": "https://developers.openai.com/api/docs/pricing",
+    "standardInputUsdPerMillion": 8,
+    "standardOutputUsdPerMillion": 40,
+    "assumedInputTokensPerTrial": 20000,
+    "assumedOutputTokensPerTrial": 4000,
+    "headroomMultiplier": 2,
+    "estimatedTotalUsd": 3.84,
+    "note": "Planning estimate for 6 trials (3 scenarios x 2 strategies); actual usage can exceed assumptions. Not a spend cap. Obtain explicit budget authorization before running."
+  }
+}

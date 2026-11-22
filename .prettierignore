@@ -1,0 +1,5 @@
+node_modules
+dist
+results
+pnpm-lock.yaml
+docs/research/gap-analysis.md
