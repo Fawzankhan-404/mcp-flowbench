@@ -1,44 +1,56 @@
+<div align="center">
+
 # MCP FlowBench
 
-MCP FlowBench is a research-oriented benchmark harness for comparing direct tool calls with official Programmatic Tool Calling (PTC) in OpenAI Agents JS. Both live conditions use the same task, fixture data, MCP schemas, permissions, and scenario verifier, routed through a local MCP client adapter.
+### A reproducible benchmark for MCP-backed tool calling
 
-It targets a specific comparison gap: how do direct and programmatic invocation behave on controlled MCP-shaped tasks as tool catalogs and orchestration patterns change? This MVP checks correctness and records instrumentation; it makes no claim that either strategy is faster or cheaper.
+Compare direct calls with **real Programmatic Tool Calling (PTC)** in OpenAI Agents JS using controlled tasks, schemas, permissions, and fixtures.
 
-## Architecture
+[![CI](https://img.shields.io/github/actions/workflow/status/Fawzankhan-404/mcp-flowbench/ci.yml?branch=main&label=CI)](https://github.com/Fawzankhan-404/mcp-flowbench/actions/workflows/ci.yml)
+[![Latest release](https://img.shields.io/github/v/release/Fawzankhan-404/mcp-flowbench?label=release)](https://github.com/Fawzankhan-404/mcp-flowbench/releases/latest)
+[![License: MIT](https://img.shields.io/badge/License-MIT-2f6f62.svg)](LICENSE)
+[![Node.js 20+](https://img.shields.io/badge/Node.js-20%2B-43853d.svg)](https://nodejs.org/)
 
-```mermaid
-flowchart LR
-  CLI[CLI configuration] --> Engine[Benchmark engine]
-  Engine --> Offline[Offline deterministic harness]
-  Engine --> Direct[Agents JS direct tools]
-  Engine --> PTC[Agents JS PTC helper]
-  Direct --> Adapter[Shared MCP-to-Agents adapter]
-  PTC --> Adapter
-  Adapter --> Policy[Zod schemas and allowlist]
-  Policy --> Client[Official MCP TypeScript client]
-  Client <-->|In-memory MCP transport| Server[Deterministic synthetic MCP server]
-  Offline --> Client
-  Engine --> Verify[Scenario verifier and call evidence]
-  Verify --> Results[JSONL trials and JSON/Markdown summaries]
+</div>
+
+> **Research MVP · v0.1.0** — Offline correctness checks are ready. Live model evaluations are opt-in and have not yet been run. No speed, cost, or token-savings claims are made.
+
+## Why FlowBench?
+
+As tool catalogs grow, developers need a clear way to study how agents select and orchestrate tools. FlowBench provides a small, deterministic environment for comparing direct invocation with OpenAI Agents JS's supported PTC API under the same benchmark conditions.
+
+| At a glance             |                                                                                 |
+| ----------------------- | ------------------------------------------------------------------------------- |
+| **10 scenarios**        | Lookup, parallel and dependent calls, pagination, errors, permissions, and more |
+| **4 catalog sizes**     | 5, 20, 50, and 100 synthetic MCP tools                                          |
+| **Two execution modes** | Offline deterministic validation and opt-in live Agents JS runs                 |
+| **Auditable outputs**   | JSONL trial records with JSON and Markdown summaries                            |
+
+## What is actually evaluated
+
+| Mode                    | What runs                                                                                                                                       | What it tells you                                                                                                                                          |
+| ----------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Offline**             | Official MCP TypeScript SDK client/server protocol, shared schemas, permissions, scenario verifiers, and a deterministic harness                | Correctness and harness behavior. No model runs, PTC simulation, or token estimates. Offline rows are marked non-comparable.                               |
+| **Live · direct**       | A real model through OpenAI Agents JS function tools, restricted to `allowedCallers: ['direct']`                                                | Direct tool invocation behavior on the selected task and fixture.                                                                                          |
+| **Live · programmatic** | A real Responses model through `programmaticToolCallingTool()`, with the same MCP-backed tools restricted to `allowedCallers: ['programmatic']` | Genuine Agents JS PTC behavior. Generated code uses the provider-supported execution boundary; FlowBench never runs model-generated code in local Node.js. |
+
+Both live strategies use the same task, tool schemas, permissions, and fixed fixture data. They run against separate fixture instances through a local MCP client adapter and deterministic in-memory MCP server. This does **not** measure OpenAI's hosted `hostedMcpTool`, a remote MCP transport, or its network overhead.
+
+## Quick start: offline mode
+
+**Requirements:** Node.js 20 or later and pnpm 11.25.0.
+
+```bash
+pnpm install --frozen-lockfile
+pnpm run build
+pnpm run flowbench -- --environment offline --strategy direct --scenario all --catalog-size 5,20,50,100 --trials 1 --output results
 ```
 
-Offline mode calls the deterministic harness directly through the MCP client and never executes an Agent or simulates PTC. Live direct mode calls Agents JS function tools; live PTC mode adds `programmaticToolCallingTool()` and restricts the same MCP-backed tools to the `programmatic` caller. Agents JS delegates generated programs to its supported execution boundary; FlowBench does not execute model-generated code in local Node.js. Both live strategies run against separate fixture instances created from the same fixed dataset. This is a local MCP-backed function-tool adapter benchmark, not a comparison with OpenAI's native hosted MCP tool or a remote MCP transport.
+Offline mode needs no API key. It validates the deterministic harness and scenario verifiers; it does not execute an agent or imitate PTC.
 
-## What is actually measured
+### Development checks
 
-- **Offline mode** exercises the official MCP TypeScript SDK client/server protocol, shared schemas and permissions, scenarios, and verifiers. A deterministic harness selects calls. It makes no model request and reports no token estimates. Rows are marked `executionKind: offline-harness` and `benchmarkComparable: false`.
-- **Live direct mode** runs a real model through OpenAI Agents JS with MCP-backed function tools restricted to `allowedCallers: ['direct']`.
-- **Live programmatic mode** runs a real Responses model through Agents JS `programmaticToolCallingTool()` with those same tools restricted to `allowedCallers: ['programmatic']`. Program code runs in the provider-supported execution environment; FlowBench never evaluates it in local Node.js. A trial is comparable only when it actually invokes a tool.
-- This is a **local MCP-client adapter** comparison. It does not benchmark native hosted `hostedMcpTool` or its network/service overhead. Both live strategies call the same synthetic in-memory MCP server through a client-owned adapter.
-
-Live runs require an explicitly selected supported Responses model and `OPENAI_API_KEY`; they can incur API charges. The Agents JS run is aborted after 90 seconds. No live results are included yet.
-
-## Install and verify
-
-Requirements: Node.js 20 or later and pnpm 11.25.0 (the CI version).
-
-```powershell
-pnpm install --frozen-lockfile
+```bash
 pnpm format:check
 pnpm lint
 pnpm licenses:check
@@ -47,55 +59,53 @@ pnpm test
 pnpm build
 ```
 
-## Offline harness
+## Opt-in: live Agents JS runs
 
-```powershell
+Live evaluations make model requests and may incur API charges. Select a supported Responses model and set `OPENAI_API_KEY` in the process environment before running. The CLI does not load `.env` files.
+
+```bash
 pnpm run build
-pnpm run flowbench -- --environment offline --strategy direct --scenario all --catalog-size 5,20,50,100 --trials 1 --output results
+
+pnpm run flowbench -- --environment live --strategy direct \
+  --scenario dependent-calls --catalog-size 20 --trials 20 \
+  --model <supported-responses-model> --output results
+
+pnpm run flowbench -- --environment live --strategy programmatic \
+  --scenario dependent-calls --catalog-size 20 --trials 20 \
+  --model <supported-responses-model> --output results
 ```
 
-Offline mode rejects `--strategy programmatic`; it never pretends to run PTC. These runs validate the deterministic MCP harness, not model latency or token comparisons.
+Use the same scenario, catalog size, model, and trial count for each strategy. The strategy instruction and `allowedCallers` intentionally differ to select direct versus PTC execution. PTC trials without scenario-specific successful MCP evidence are marked non-comparable.
 
-## Live Agents JS evaluations
+Results are separated by mode and strategy. Median latency is reported; p95 is omitted below 20 trials. Provider usage, retries, billable tokens, and peak memory are `null` when the provider does not supply them. Runs abort after 90 seconds.
 
-```powershell
-$env:OPENAI_API_KEY = "..."
-pnpm run build
-pnpm run flowbench -- --environment live --strategy direct --scenario dependent-calls --catalog-size 20 --trials 20 --model <supported-responses-model> --output results
-pnpm run flowbench -- --environment live --strategy programmatic --scenario dependent-calls --catalog-size 20 --trials 20 --model <supported-responses-model> --output results
-```
+An opt-in six-trial example is available in [`configs/live-smoke.json`](configs/live-smoke.json). It is not run automatically. Its cost estimate is an assumption, **not a spending limit**; actual charges may be higher. Set an explicit spend cap before authorizing live runs.
 
-Use the same scenario, catalog size, model, and trial count for each strategy. Scenario task prompts, tool schemas, and server data are identical; the strategy instruction and `allowedCallers` differ by design to select direct versus genuine PTC execution. PTC trials that do not show scenario-specific successful MCP evidence are marked non-comparable. Outputs are separated under `results/live-direct` and `results/live-programmatic`; offline outputs go under `results/offline`. Median latency is always reported; p95 is omitted below 20 trials. Unavailable provider usage, retries, billable tokens, and peak memory remain null.
+## Scenarios and data
 
-An opt-in six-trial smoke configuration is in `configs/live-smoke.json`. It covers single lookup, independent calls, and dependent calls in both strategies with five tools. The config is not executed automatically. It estimates $3.84 at GPT-6.2 Astra standard rates using an explicit assumption of 20k input and 4k output tokens per trial plus 2x headroom; actual charges can exceed that estimate, which is not an API spend cap. Obtain an approved spend limit before running. GPT-6.2 Astra is shown in the official PTC guide examples and currently listed at $8/M input and $40/M output standard pricing.
+The synthetic catalog covers employee lookup, department retrieval, task search and pagination, report aggregation, and classroom queries. The 10 scenarios are:
 
-```powershell
-pnpm run build
-pnpm run flowbench -- --environment live --strategy direct --scenario single-lookup,independent-calls,dependent-calls --catalog-size 5 --trials 1 --model gpt-6.2-astra --output results
-pnpm run flowbench -- --environment live --strategy programmatic --scenario single-lookup,independent-calls,dependent-calls --catalog-size 5 --trials 1 --model gpt-6.2-astra --output results
-```
+`single-lookup` · `independent-calls` · `dependent-calls` · `large-catalog` · `large-response` · `pagination` · `partial-failure` · `concurrent-discovery` · `cache-invalidation` · `permission-denied`
 
-These commands make paid model requests when `OPENAI_API_KEY` is present. Review the assumptions and secure authorization first.
+Ordinary benchmark runs use fixed synthetic data. Live JSONL records synthetic tool arguments and outputs, so review results before sharing. Never put credentials in source, prompts, or result artifacts.
 
-## Scenarios and limits
+## Research scope
 
-The synthetic catalog supports 5, 20, 50, and 100 tools across employee lookup, department retrieval, task search/pagination, report aggregation, and classroom queries. The ten scenarios cover single lookup, independent calls, dependent calls, catalog size, large responses, pagination, partial failure, concurrent discovery, cache invalidation, and permission denial.
+- [OpenAI Agents JS PTC guide](https://developers.openai.com/api/docs/guides/tools-programmatic-tool-calling) documents the live PTC mechanism; offline mode does not simulate it.
+- [Cloudflare Code Mode](https://developers.cloudflare.com/agent-setup/command-code/) is a related code-oriented tool design with a sandboxed runtime; it is not implemented or measured here.
+- [MCPMark](https://github.com/eval-sys/mcpmark) and [MCP-Atlas](https://github.com/scaleapi/mcp-atlas) study broader tasks and realistic MCP environments. FlowBench's synthetic fixture is smaller and aimed at controlled comparisons.
+- [PTC-Bench](https://arxiv.org/abs/2611.01446) studies long-horizon programmatic tool use. FlowBench covers short, deterministic scenarios and does not reproduce its scope.
 
-Live results depend on model and prompt behavior. Offline mode is not a substitute for live evaluation. The fixture uses in-memory MCP transport; network transport and native hosted-MCP comparisons are outside this MVP. No benchmark performance claims are made until live runs are collected.
+These projects address different questions. FlowBench does not claim to be first, comprehensive, or superior. See [`docs/benchmarks/methodology.md`](docs/benchmarks/methodology.md) and [`docs/research/gap-analysis.md`](docs/research/gap-analysis.md) for the benchmark rationale and limitations.
 
-## Related work
+## Contributing
 
-- [OpenAI Agents JS Programmatic Tool Calling](https://developers.openai.com/api/docs/guides/tools-programmatic-tool-calling) provides the live PTC mechanism evaluated here; the offline harness does not imitate it.
-- [Cloudflare Code Mode](https://developers.cloudflare.com/agent-setup/command-code/) exposes API operations through code-oriented search/execute tools and a sandboxed runtime. It is a related design direction, but is not implemented or measured by this project.
-- [MCPMark](https://github.com/eval-sys/mcpmark) and [MCP-Atlas](https://github.com/scaleapi/mcp-atlas) evaluate broader tasks against realistic MCP environments and servers. FlowBench's synthetic fixture is smaller and designed for controlled paired comparisons.
-- [PTC-Bench](https://arxiv.org/abs/2611.01446) studies long-horizon programmatic tool use. FlowBench currently covers short, deterministic scenario families and does not reproduce that evaluation scope.
+Contributions that improve reproducibility, scenario coverage, verifier quality, or documentation are welcome. Please include the exact command and environment for benchmark or bug reports, and distinguish measured results from estimates.
 
-These projects answer different research questions. FlowBench does not claim to be first, comprehensive, or superior to them.
-
-## Security and data handling
-
-Ordinary benchmark runs use fixed synthetic data. Set `OPENAI_API_KEY` in the process environment as shown in the live examples; the CLI does not load `.env` files, though Git ignores them if you use one with an explicit loader. Never place credentials in result files, prompts, source, or support requests. Live results record synthetic tool arguments and outputs in JSONL. Review artifacts before sharing, even though the included fixture contains no customer records. Programmatic code runs only through the Agents SDK's supported hosted environment; arbitrary local Node.js code execution is not part of this project.
+FlowBench's [Agents JS issue #2047 follow-up](https://github.com/openai/openai-agents-js/issues/2047#issuecomment-7076888746) shares an independently verified reproduction on Agents SDK 0.22.0. It is a confirmation of an existing report, not a claim of discovering the issue.
 
 ## License
 
-MCP FlowBench is distributed under the MIT License; see [LICENSE](LICENSE).
+MIT — see [`LICENSE`](LICENSE).
+
+**Topics:** #MCP #OpenAI #AgentsSDK #TypeScript #Benchmarking #ProgrammaticToolCalling #DeveloperTools
